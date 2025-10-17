@@ -1,0 +1,107 @@
+services:
+  # ======================================================
+  # 🗄️ PostgreSQL Database
+  # ======================================================
+  postgres:
+    image: postgres:15
+    container_name: postgres-db
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: mindfello
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  # ======================================================
+  # 🔐 Keycloak Identity Server
+  # ======================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0
+    container_name: keycloak
+    restart: always
+    command:
+      - start-dev
+      - --hostname-strict=false
+      - --http-port=8080
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+
+      # Database Config
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres-db:5432/mindfello
+      KC_DB_USERNAME: admin
+      KC_DB_PASSWORD: admin
+
+      # Monitoring
+      KC_HEALTH_ENABLED: true
+      KC_METRICS_ENABLED: true
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres
+
+  # ======================================================
+  # ⚙️ Spring Boot Backend
+  # ======================================================
+  auth-backend:
+    build:
+      context: ./auth-backend
+      dockerfile: Dockerfile
+    container_name: auth-backend
+    restart: on-failure
+    environment:
+      SPRING_APPLICATION_NAME: mindfello-auth-service
+      SERVER_PORT: 8080
+
+      # PostgreSQL Config
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-db:5432/mindfello
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: admin
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+
+      # Keycloak JWT / Auth Config
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/master
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:8080/realms/master/protocol/openid-connect/certs
+
+      # CORS Config
+      SPRING_WEB_CORS_ALLOWED_ORIGINS: http://localhost:3000
+      SPRING_WEB_CORS_ALLOWED_METHODS: GET,POST,PUT,DELETE,OPTIONS
+
+      # Actuator (optional)
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info
+      MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - keycloak
+
+  # ======================================================
+  # 💻 React Frontend (Vite)
+  # ======================================================
+  auth-ui:
+    build:
+      context: ./auth-ui
+      dockerfile: Dockerfile
+    container_name: auth-ui
+    restart: always
+    ports:
+      - "3000:80"
+    environment:
+      - VITE_OIDC_AUTHORITY=http://localhost:8081/realms/master
+      - VITE_OIDC_CLIENT_ID=mindfello-client
+      - VITE_OIDC_REDIRECT_URI=http://localhost:3000/callback
+      - VITE_API_BASE=http://localhost:8080
+    depends_on:
+      - auth-backend
+      - keycloak
+
+# ======================================================
+# 🧱 Volumes
+# ======================================================
+volumes:
+  pgdata:

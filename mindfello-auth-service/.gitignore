@@ -1,0 +1,68 @@
+# ======================================================
+# Root / global ignores
+# ======================================================
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+
+# Docker
+# Ignore Docker local override or temp files if needed
+# docker-compose.override.yml
+
+# ======================================================
+# Gradle / Java builds
+# ======================================================
+**/build/
+**/out/
+**/.gradle/
+
+# Ignore Gradle wrapper binaries if you prefer not to track
+# !gradle/wrapper/gradle-wrapper.jar
+
+# ======================================================
+# Node / React builds
+# ======================================================
+**/node_modules/
+**/dist/
+**/.vite/
+
+# ======================================================
+# IDE / editor configs
+# ======================================================
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+/out/
+
+# Eclipse / STS
+.classpath
+.project
+.settings/
+.apt_generated/
+
+# VS Code
+.vscode/
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# ======================================================
+# Environment files (optional)
+# ======================================================
+.env
+.env.local
