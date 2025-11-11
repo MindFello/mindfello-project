@@ -1,0 +1,91 @@
+services:
+  # ======================================================
+  # 🗄️ PostgreSQL for Keycloak
+  # ======================================================
+  keycloak-db:
+    image: postgres:11.4
+    container_name: keycloak-db
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    ports:
+      - "14092:5432"
+    volumes:
+      - keycloak-db:/var/lib/postgresql/data
+
+  # ======================================================
+  # 🔐 Keycloak
+  # ======================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1.0
+    container_name: keycloak
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: keycloak-db
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_DB_URL_PORT: 5432
+      KC_BOOTSTRAP_ADMIN_USERNAME: keycloak
+      KC_BOOTSTRAP_ADMIN_PASSWORD: keycloak
+
+      # 👇 Ensure Keycloak tokens use localhost as issuer
+      KC_HOSTNAME_URL: http://localhost:14082
+      KC_HOSTNAME_ADMIN_URL: http://localhost:14082
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+    command:
+      - start-dev
+      - --http-relative-path=/
+    ports:
+      - "14082:8080"
+    depends_on:
+      - keycloak-db
+
+  # ======================================================
+  # ⚙️ Spring Boot Backend
+  # ======================================================
+  auth-backend:
+    build:
+      context: ./auth-backend
+      dockerfile: Dockerfile
+    container_name: auth-backend
+    environment:
+      SERVER_PORT: 1291
+      SPRING_APPLICATION_NAME: mindfello-auth-service
+      SPRING_DATASOURCE_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      SPRING_DATASOURCE_USERNAME: keycloak
+      SPRING_DATASOURCE_PASSWORD: keycloak
+
+      # 👇 Match Keycloak issuer (localhost instead of keycloak)
+      SPRING_SECURITY_OAUTH2_RESOURCE_SERVER_JWT_ISSUER_URI: http://localhost:14082/realms/mindfello-realm
+    ports:
+      - "1291:8080"
+    depends_on:
+      - keycloak
+      - keycloak-db
+    extra_hosts:
+      # 👇 Allow backend to resolve localhost in same way as the host
+      - "host.docker.internal:host-gateway"
+
+  # ======================================================
+  # 💻 React Frontend (Vite)
+  # ======================================================
+  auth-ui:
+    build:
+      context: ./auth-ui
+      dockerfile: Dockerfile
+    container_name: auth-ui
+    environment:
+      - VITE_OIDC_AUTHORITY=http://localhost:14082/realms/mindfello-realm
+      - VITE_OIDC_CLIENT_ID=mindfello-client
+      - VITE_OIDC_REDIRECT_URI=http://localhost:3000/callback
+      - VITE_API_BASE=http://localhost:1291
+    ports:
+      - "3000:80"
+    depends_on:
+      - auth-backend
+      - keycloak
+
+volumes:
+  keycloak-db:
